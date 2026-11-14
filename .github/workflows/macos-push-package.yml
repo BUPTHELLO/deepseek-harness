@@ -1,0 +1,68 @@
+name: Package Desktop · macOS · Branch pushes
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: macOS DMG (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x64
+            runner: macos-15-intel
+    defaults:
+      run:
+        shell: bash
+    env:
+      DSH_DESKTOP_TARGET_PLATFORM: darwin
+      DSH_DESKTOP_TARGET_ARCH: ${{ matrix.arch }}
+      DSH_TELEMETRY_DISABLED: '1'
+      # Hosted Mac runners have limited memory; keep repository build stages sequential.
+      DSH_GATE_CONCURRENCY: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v5.0.0
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check local packaging configuration and tools
+        run: pnpm run package:desktop:mac:${{ matrix.arch }}:unsigned --check
+      - name: Build and verify unsigned DMG
+        run: pnpm run package:desktop:mac:${{ matrix.arch }}:unsigned
+      - name: Upload DMG
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: macos-${{ matrix.arch }}-unsigned-${{ github.sha }}-${{ github.run_attempt }}
+          path: apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/unsigned-artifacts/*.dmg
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+      - name: Upload packaging diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: macos-${{ matrix.arch }}-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: apps/desktop/.desktop-build/packaging-runs/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14

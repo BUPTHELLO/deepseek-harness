@@ -18,6 +18,7 @@ description: "在本地或 Windows／macOS Actions 中生成 Desktop 安装包�
 - [Windows Actions 打包](#windows-actions)
 - [macOS 自托管打包](#macos-actions)
 - [未签名 Windows 测试安装包](#unsigned-windows-test-installer)
+- [macOS 分支推送打包](#macos-branch-push-packaging)
 - [无发布签名的本地 macOS DMG](#local-macos-dmg-without-release-signing)
 - [macOS 发布签名与诊断](#macos-release-signing)
 - [目录构建与准备](#directory-and-preparation)
@@ -162,6 +163,14 @@ pnpm run package:desktop:win:x64:unsigned
 该命令读取 `.env.windows`，要求设置 `DSH_DESKTOP_APP_ID` 和[强制更新策略配置](../README.zh.md#mandatory-update-policy)，包括真实的 HTTPS 服务 origin。本机验收和 CI 使用 Node 24；其他工具为根 `packageManager` 固定版本的 pnpm、Git、PowerShell 7（`pwsh`）、tar、Python、Visual C++ Build Tools 和 Windows SDK。Python 不在 `PATH` 中时设置 `PYTHON`。命令将安装包写入 `.desktop-build/targets/win-x64/unsigned-artifacts/`，省略普通自动更新配置，清除签名凭据，且不生成发布完成记录。无需 EV 或上传凭据。签名打包和上传仍遵循正式发布要求。
 
 先运行 `pnpm install --frozen-lockfile`，再运行 `pnpm run package:desktop:win:x64:unsigned --check` 校验配置和工具，最后执行上面的完整命令。打包自行执行完整构建和隔离的运行时 smoke，不调用在线模型。阶段日志保留在 `.desktop-build/packaging-runs/`；仅构建成功不代表安装包验证通过。依赖安装和运行时准备需要访问 npm、GitHub release 资源和 nodejs.org；网络需要时使用现有 registry 和代理配置。缓存与工具位置属于构建机器配置，不在跟踪文件中固定个人路径。
+
+<a id="macos-branch-push-packaging"></a>
+
+## macOS 分支推送打包
+
+[分支推送工作流](../../../.github/workflows/macos-push-package.yml)监听所有分支推送，也支持手动运行。Apple Silicon（`arm64`）和 Intel（`x64`）任务独立运行在 GitHub 托管的 macOS runner 上，使用下方的未签名命令，版本来自检出的包清单。无需 Apple 签名或公证凭据。同一分支的新推送会取消前一次运行。
+
+运行成功后，打开该次 Actions 页面，在 **Artifacts** 中下载 `macos-<arch>-unsigned-<commit>-<attempt>`；每个压缩包包含一个 DMG。产物和打包诊断保留 14 天。打包包含仓库构建检查以及准备阶段和组装后运行时的冒烟检查；两种 Mac 架构的验证由 GitHub Actions 执行。这些安装包遵循[本地 macOS 构建限制](#local-macos-dmg-without-release-signing)。
 
 <a id="local-macos-dmg-without-release-signing"></a>
 
